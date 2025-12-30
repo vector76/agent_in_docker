@@ -1,22 +1,21 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Load .env file
-if not exist .env (
-    echo .env file not found. Create it with IMAGE_NAME, CONTAINER_NAME, AMP_API_KEY.
+:: Load container config from .env.container
+if not exist .env.container (
+    echo .env.container file not found. Copy .env.container.example to .env.container and customize.
     exit /b 1
 )
-for /f "tokens=1,2 delims==" %%a in (.env) do (
+for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="IMAGE_NAME" set IMAGE_NAME=%%b
     if "%%a"=="CONTAINER_NAME" set CONTAINER_NAME=%%b
-    if "%%a"=="AMP_API_KEY" set AMP_API_KEY=%%b
 )
 if not defined IMAGE_NAME (
-    echo IMAGE_NAME not set in .env.
+    echo IMAGE_NAME not set in .env.container.
     exit /b 1
 )
 if not defined CONTAINER_NAME (
-    echo CONTAINER_NAME not set in .env.
+    echo CONTAINER_NAME not set in .env.container.
     exit /b 1
 )
 
