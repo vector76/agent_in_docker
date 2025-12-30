@@ -32,6 +32,14 @@ if not defined WORK_FOLDER (
     exit /b 1
 )
 
+:: Load secrets from secrets.bat if it exists
+if exist secrets.bat (
+    echo Loading secrets from secrets.bat...
+    call secrets.bat
+) else (
+    echo Note: secrets.bat not found. Set environment variables manually or create secrets.bat from secrets.bat.example
+)
+
 :: Build -e flags from host environment variables
 :: List of environment variable names to propagate to container (hard-coded for security)
 :: Add more variable names to this list as needed, separated by spaces
