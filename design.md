@@ -3,7 +3,7 @@
 This reference outlines the Docker workflow for a Linux dev environment container on Windows. The workflow uses batch scripts to automate container management, emphasizes declarative updates via Dockerfile, versioned images, persistent containers for day-to-day use, and periodic rebuilds for dependency freshness or major changes. The workflow separates container starting from shell attachment to prevent accidental shutdowns when closing shells—all interactions use `exec` for shells, and the container runs a keep-alive process (e.g., `tail -f /dev/null`) to stay active independently.
 
 ## Key Principles
-- **Images**: Immutable and versioned (e.g., `my-dev-env:v1`). Rebuild for changes; tag `:latest` after verification.
+- **Images**: Immutable, single image per configuration. Rebuild replaces the previous image.
 - **Containers**: Persistent (no `--rm`); use `stop/start` for sessions. Create new ones only after image updates. Container runs detached with a keep-alive command to avoid shutdown on shell exits.
 - **Persistence**: Work files are stored in a subdirectory (configurable via `WORK_FOLDER` in `.env.container`) that is mounted into the container, keeping Docker setup files separate from work.
 - **Security**: Secrets (API keys, tokens) are loaded from `secrets.bat` (gitignored) or host environment variables, never committed to git. Container configuration (names, paths) is in `.env.container` (gitignored).
@@ -20,12 +20,19 @@ CONTAINER_NAME=my-dev-container
 WORK_FOLDER=work
 # Optional: Git repository URL to clone into work folder on first build
 # INITIAL_REPO_CHECKOUT=https://github.com/user/repo.git
+# Optional: Subfolder within work folder to checkout repository (e.g., for git worktrees)
+# REPO_SUBFOLDER=main-repo
 ```
+
+**Note**: You can set `WORK_FOLDER=.` to use the current directory as the work folder. This is useful when you want the Docker setup files in a subdirectory.
 
 Set secrets using `secrets.bat` file (recommended):
 1. Copy `secrets.bat.example` to `secrets.bat`
 2. Fill in your actual secret values in `secrets.bat`
-3. The `rebuild.bat` script will automatically load these when building
+3. Place `secrets.bat` in either:
+   - The current folder (same directory as `rebuild.bat`)
+   - The parent folder (useful when `WORK_FOLDER=.` to keep secrets outside the mounted volume)
+4. The `rebuild.bat` script will automatically search both locations and load the file when building
 
 Alternatively, set environment variables in your PowerShell session (or system-wide):
 ```powershell
@@ -47,9 +54,10 @@ $env:TZ = "America/New_York"  # Override auto-detected timezone
 
 - **Build and Create Container**:
 ```
-rebuild.bat v1
+rebuild.bat
 ```
-  - Builds the image with the specified version
+  - Removes old image if it exists
+  - Builds a new image (no version tags)
   - Creates (but doesn't start) the container
   - Automatically detects Windows timezone and passes it to container
   - Passes environment variables (API keys, git config, etc.) to container
@@ -81,7 +89,10 @@ cbash.bat
 - **Git user**: Configured from `GIT_USER_NAME` and `GIT_USER_EMAIL` environment variables
 - **GitHub authentication**: Uses `GITHUB_TOKEN` for authenticated git operations
 - **Timezone**: Auto-detected from Windows, can be overridden with `TZ` environment variable
-- **Repository checkout**: If `INITIAL_REPO_CHECKOUT` is set in `.env.container` and work folder is empty, automatically clones on container start
+- **Repository checkout**: 
+  - If `INITIAL_REPO_CHECKOUT` is set in `.env.container` and target directory is empty, automatically clones on container start
+  - If `REPO_SUBFOLDER` is also set, clones into that subfolder of the work directory (useful for git worktrees)
+  - If `REPO_SUBFOLDER` is not set, clones directly into the work directory
 
 ### Ownership Management
 - **Fixed UID**: User `devuser` always has UID 2000 for consistent ownership
@@ -93,18 +104,18 @@ cbash.bat
 - **When to Update**: Periodically (e.g., to refresh pip packages) or for major additions (e.g., new tools in Dockerfile).
 - **Steps**:
   1. Edit `Dockerfile` if adding/changing installs.
-  2. Rebuild with new version:
+  2. Rebuild:
 ```
-rebuild.bat v2
+rebuild.bat
 ```
   - Automatically stops and removes old container
-  - Builds new image version
+  - Removes old image
+  - Builds new image
   - Creates new container from updated image
   - Work folder is preserved (not removed)
 
-- **Cleanup Old Resources** (after verification):
+- **Optional Cleanup** (if needed):
 ```
-docker rmi my-dev-env:v1  # Remove old image
 docker system prune  # Prune dangling items (confirm prompt)
 ```
 

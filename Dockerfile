@@ -43,10 +43,13 @@ RUN echo 'if [ -n "$GIT_USER_EMAIL" ]; then git config --global user.email "$GIT
 # Set up GitHub token authentication if GITHUB_TOKEN is available
 # Uses "git" as username (standard for GitHub PATs) or GITHUB_USERNAME if set
 RUN echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
-    echo '  git config --global credential.helper store' >> ~/.bashrc && \
-    echo '  GITHUB_USER="${GITHUB_USERNAME:-git}"' >> ~/.bashrc && \
-    echo '  echo "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com" > ~/.git-credentials' >> ~/.bashrc && \
-    echo '  chmod 600 ~/.git-credentials' >> ~/.bashrc && \
+    echo '  if [ -z "$GITHUB_USERNAME" ]; then' >> ~/.bashrc && \
+    echo '    echo "GITHUB_USERNAME is required for GitHub authentication" >&2' >> ~/.bashrc && \
+    echo '  else' >> ~/.bashrc && \
+    echo '    git config --global credential.helper store' >> ~/.bashrc && \
+    echo '    echo "https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com" > ~/.git-credentials' >> ~/.bashrc && \
+    echo '    chmod 600 ~/.git-credentials' >> ~/.bashrc && \
+    echo '  fi' >> ~/.bashrc && \
     echo 'fi' >> ~/.bashrc
 
 # Switch to root temporarily to create entrypoint that can fix ownership
@@ -62,21 +65,25 @@ RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'if [ -d /home/devuser/work ] && [ "$(stat -c %u /home/devuser/work 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
     echo '  chown 2000:2000 /home/devuser/work 2>/dev/null || true' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
+    echo '# Disable exit on error for optional repository checkout' >> /entrypoint.sh && \
+    echo 'set +e' >> /entrypoint.sh && \
     echo '# Switch to devuser for repository checkout and command execution' >> /entrypoint.sh && \
     echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ]; then' >> /entrypoint.sh && \
     echo '  if [ -n "$REPO_SUBFOLDER" ]; then' >> /entrypoint.sh && \
     echo '    # Checkout to subfolder' >> /entrypoint.sh && \
     echo '    REPO_DIR="/home/devuser/work/$REPO_SUBFOLDER"' >> /entrypoint.sh && \
     echo '    if [ ! -d "$REPO_DIR" ] || [ -z "$(ls -A \"$REPO_DIR\" 2>/dev/null)" ]; then' >> /entrypoint.sh && \
-    echo '      su - devuser -c "mkdir -p \"$REPO_DIR\" && cd \"$REPO_DIR\" && git clone \"$INITIAL_REPO_CHECKOUT\" ."' >> /entrypoint.sh && \
+    echo '      su - devuser -c "mkdir -p \"$REPO_DIR\" && cd \"$REPO_DIR\" && git clone \"$INITIAL_REPO_CHECKOUT\" ." || true' >> /entrypoint.sh && \
     echo '    fi' >> /entrypoint.sh && \
     echo '  else' >> /entrypoint.sh && \
     echo '    # Checkout to work folder (default behavior)' >> /entrypoint.sh && \
     echo '    if [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /entrypoint.sh && \
-    echo '      su - devuser -c "cd /home/devuser/work && git clone \"$INITIAL_REPO_CHECKOUT\" ."' >> /entrypoint.sh && \
+    echo '      su - devuser -c "cd /home/devuser/work && git clone \"$INITIAL_REPO_CHECKOUT\" ." || true' >> /entrypoint.sh && \
     echo '    fi' >> /entrypoint.sh && \
     echo '  fi' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
+    echo '# Re-enable exit on error for main command' >> /entrypoint.sh && \
+    echo 'set -e' >> /entrypoint.sh && \
     echo 'exec gosu devuser "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 

@@ -1,13 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
 
-if "%~1"=="" (
-    echo Usage: %0 ^<version^> ^(e.g., v3^)
-    exit /b 1
-)
-
-set VERSION=%~1
-
 :: Load container config from .env.container
 if not exist .env.container (
     echo .env.container file not found. Copy .env.container.example to .env.container and customize.
@@ -33,12 +26,20 @@ if not defined WORK_FOLDER (
     exit /b 1
 )
 
-:: Load secrets from secrets.bat if it exists
+:: Load secrets from secrets.bat if it exists (check current folder and parent folder)
+set SECRETS_LOADED=0
 if exist secrets.bat (
-    echo Loading secrets from secrets.bat...
+    echo Loading secrets from secrets.bat ^(current folder^)...
     call secrets.bat
-) else (
-    echo Note: secrets.bat not found. Set environment variables manually or create secrets.bat from secrets.bat.example
+    set SECRETS_LOADED=1
+)
+if exist ..\secrets.bat (
+    echo Loading secrets from secrets.bat ^(parent folder^)...
+    call ..\secrets.bat
+    set SECRETS_LOADED=1
+)
+if "!SECRETS_LOADED!"=="0" (
+    echo Note: secrets.bat not found in current or parent folder. Set environment variables manually or create secrets.bat from secrets.bat.example
 )
 
 :: Build -e flags from host environment variables
@@ -112,29 +113,29 @@ echo Stopping and removing container %CONTAINER_NAME% if exists...
 docker stop %CONTAINER_NAME%
 docker rm %CONTAINER_NAME%
 
+:: Remove old image if it exists
+echo Removing old image %IMAGE_NAME% if exists...
+docker rmi %IMAGE_NAME% 2>nul
+
 :: Build new image
-echo Building new image %IMAGE_NAME%:%VERSION%...
-docker build -t %IMAGE_NAME%:%VERSION% .
+echo Building new image %IMAGE_NAME%...
+docker build -t %IMAGE_NAME% .
 if errorlevel 1 (
     echo Build failed.
     pause
     exit /b 1
 )
 
-:: Tag as latest
-docker tag %IMAGE_NAME%:%VERSION% %IMAGE_NAME%:latest
-
 :: Create (but don't start) new container
-echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%:latest...
-docker create --name %CONTAINER_NAME% %ENV_VARS% -v %VOLUME_MOUNT% --workdir %WORKDIR% %IMAGE_NAME%:latest %KEEP_ALIVE%
+echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%...
+docker create --name %CONTAINER_NAME% %ENV_VARS% -v %VOLUME_MOUNT% --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
 if errorlevel 1 (
     echo Create failed.
     pause
     exit /b 1
 )
 
-:: Optional cleanup of old images (uncomment if desired)
-:: docker rmi %IMAGE_NAME%:old-version  :: Replace with specific old tag
+:: Optional cleanup (uncomment if desired)
 :: docker system prune -f
 
 echo Rebuild complete. Use cbash.bat to open a shell.
