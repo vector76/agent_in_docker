@@ -16,6 +16,8 @@ if not exist .env.container (
 for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="IMAGE_NAME" set IMAGE_NAME=%%b
     if "%%a"=="CONTAINER_NAME" set CONTAINER_NAME=%%b
+    if "%%a"=="WORK_FOLDER" set WORK_FOLDER=%%b
+    if "%%a"=="INITIAL_REPO_CHECKOUT" set INITIAL_REPO_CHECKOUT=%%b
 )
 if not defined IMAGE_NAME (
     echo IMAGE_NAME not set in .env.container.
@@ -23,6 +25,10 @@ if not defined IMAGE_NAME (
 )
 if not defined CONTAINER_NAME (
     echo CONTAINER_NAME not set in .env.container.
+    exit /b 1
+)
+if not defined WORK_FOLDER (
+    echo WORK_FOLDER not set in .env.container.
     exit /b 1
 )
 
@@ -54,14 +60,24 @@ if defined GIT_USER_EMAIL (
 if defined GITHUB_USERNAME (
     set ENV_VARS=!ENV_VARS! -e "GITHUB_USERNAME=!GITHUB_USERNAME!"
 )
+if defined INITIAL_REPO_CHECKOUT (
+    set ENV_VARS=!ENV_VARS! -e "INITIAL_REPO_CHECKOUT=!INITIAL_REPO_CHECKOUT!"
+)
 :: Add more variables here following the same pattern:
 :: if defined ANOTHER_VAR (
 ::     set ENV_VARS=!ENV_VARS! -e "ANOTHER_VAR=!ANOTHER_VAR!"
 :: )
 
+:: Create work folder if it doesn't exist
+if not exist "!WORK_FOLDER!" (
+    echo Creating work folder: !WORK_FOLDER!
+    mkdir "!WORK_FOLDER!"
+)
+
 :: Get absolute host directory and replace \ with / for Docker volume format
 set HOST_DIR=%CD%
-set VOLUME_MOUNT=!HOST_DIR:\=/!:/home/devuser/work
+set WORK_PATH=!HOST_DIR!\!WORK_FOLDER!
+set VOLUME_MOUNT=!WORK_PATH:\=/!:/home/devuser/work
 
 :: ENV_VARS is built above from host environment variables
 set WORKDIR=/home/devuser/work

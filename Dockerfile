@@ -42,8 +42,19 @@ RUN echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
     echo '  chmod 600 ~/.git-credentials' >> ~/.bashrc && \
     echo 'fi' >> ~/.bashrc
 
+# Create entrypoint script for one-time repository checkout
+RUN echo '#!/bin/bash' > /home/devuser/entrypoint.sh && \
+    echo 'set -e' >> /home/devuser/entrypoint.sh && \
+    echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ] && [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /home/devuser/entrypoint.sh && \
+    echo '  echo "Cloning repository: $INITIAL_REPO_CHECKOUT"' >> /home/devuser/entrypoint.sh && \
+    echo '  cd /home/devuser/work && git clone "$INITIAL_REPO_CHECKOUT" .' >> /home/devuser/entrypoint.sh && \
+    echo 'fi' >> /home/devuser/entrypoint.sh && \
+    echo 'exec "$@"' >> /home/devuser/entrypoint.sh && \
+    chmod +x /home/devuser/entrypoint.sh
+
 # Optional: Install additional Python packages or tools here via pip
 # RUN pip3 install --user requests numpy  # Example
 
-# Default to bash shell for interactive use
-CMD ["bash"]
+# Use entrypoint to handle repository checkout, then run the keep-alive command
+ENTRYPOINT ["/home/devuser/entrypoint.sh"]
+CMD ["tail", "-f", "/dev/null"]
