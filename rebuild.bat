@@ -33,6 +33,18 @@ set ENV_VARS=
 if defined AMP_API_KEY (
     set ENV_VARS=!ENV_VARS! -e "AMP_API_KEY=!AMP_API_KEY!"
 )
+if defined ANTHROPIC_API_KEY (
+    set ENV_VARS=!ENV_VARS! -e "ANTHROPIC_API_KEY=!ANTHROPIC_API_KEY!"
+)
+if defined CURSOR_API_KEY (
+    set ENV_VARS=!ENV_VARS! -e "CURSOR_API_KEY=!CURSOR_API_KEY!"
+)
+if defined GITHUB_TOKEN (
+    set ENV_VARS=!ENV_VARS! -e "GITHUB_TOKEN=!GITHUB_TOKEN!"
+)
+if defined CLAUDE_CODE_OAUTH_TOKEN (
+    set ENV_VARS=!ENV_VARS! -e "CLAUDE_CODE_OAUTH_TOKEN=!CLAUDE_CODE_OAUTH_TOKEN!"
+)
 :: Add more variables here following the same pattern:
 :: if defined ANOTHER_VAR (
 ::     set ENV_VARS=!ENV_VARS! -e "ANOTHER_VAR=!ANOTHER_VAR!"

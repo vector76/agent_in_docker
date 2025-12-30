@@ -20,8 +20,14 @@ WORKDIR /home/devuser/work
 # This runs the install script non-interactively; first run may prompt for login if no key is set
 RUN curl -fsSL https://ampcode.com/install.sh | bash
 
-# If using Claude Code instead, replace the above RUN with:
-# RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Claude Code
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install Cursor agent
+RUN curl https://cursor.com/install -fsS | bash
+
+# Add Cursor to PATH in bashrc
+RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 # Optional: Install additional Python packages or tools here via pip
 # RUN pip3 install --user requests numpy  # Example
