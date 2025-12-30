@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     vim \
     tzdata \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for security with fixed UID/GID
@@ -48,19 +49,29 @@ RUN echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
     echo '  chmod 600 ~/.git-credentials' >> ~/.bashrc && \
     echo 'fi' >> ~/.bashrc
 
-# Create entrypoint script for one-time repository checkout
-RUN echo '#!/bin/bash' > /home/devuser/entrypoint.sh && \
-    echo 'set -e' >> /home/devuser/entrypoint.sh && \
-    echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ] && [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /home/devuser/entrypoint.sh && \
-    echo '  echo "Cloning repository: $INITIAL_REPO_CHECKOUT"' >> /home/devuser/entrypoint.sh && \
-    echo '  cd /home/devuser/work && git clone "$INITIAL_REPO_CHECKOUT" .' >> /home/devuser/entrypoint.sh && \
-    echo 'fi' >> /home/devuser/entrypoint.sh && \
-    echo 'exec "$@"' >> /home/devuser/entrypoint.sh && \
-    chmod +x /home/devuser/entrypoint.sh
+# Switch to root temporarily to create entrypoint that can fix ownership
+USER root
+
+# Create entrypoint script that fixes Windows mount ownership issue, then switches to devuser
+# The work directory itself is often owned by root due to Windows->Linux mount translation
+# This is a false positive - we only fix root ownership, preserving warnings for real issues
+RUN echo '#!/bin/bash' > /entrypoint.sh && \
+    echo 'set -e' >> /entrypoint.sh && \
+    echo '# Fix work directory ownership if owned by root (Windows mount artifact)' >> /entrypoint.sh && \
+    echo '# Only fix root ownership - preserve warnings for legitimate cross-platform issues' >> /entrypoint.sh && \
+    echo 'if [ -d /home/devuser/work ] && [ "$(stat -c %u /home/devuser/work 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
+    echo '  chown 2000:2000 /home/devuser/work 2>/dev/null || true' >> /entrypoint.sh && \
+    echo 'fi' >> /entrypoint.sh && \
+    echo '# Switch to devuser for repository checkout and command execution' >> /entrypoint.sh && \
+    echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ] && [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /entrypoint.sh && \
+    echo '  su - devuser -c "cd /home/devuser/work && git clone \"$INITIAL_REPO_CHECKOUT\" ."' >> /entrypoint.sh && \
+    echo 'fi' >> /entrypoint.sh && \
+    echo 'exec gosu devuser "$@"' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
 
 # Optional: Install additional Python packages or tools here via pip
 # RUN pip3 install --user requests numpy  # Example
 
-# Use entrypoint to handle repository checkout, then run the keep-alive command
-ENTRYPOINT ["/home/devuser/entrypoint.sh"]
+# Use entrypoint to handle ownership fix and repository checkout, then run the keep-alive command
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["tail", "-f", "/dev/null"]

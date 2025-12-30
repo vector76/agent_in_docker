@@ -126,6 +126,5 @@ if errorlevel 1 (
 :: docker system prune -f
 
 echo Rebuild complete. Use cbash.bat to open a shell.
-pause
 
 endlocal

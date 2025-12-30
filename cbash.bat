@@ -33,9 +33,9 @@ if not "%RUNNING%"=="true" (
     docker start %CONTAINER_NAME%
 )
 
-:: Exec into interactive bash
+:: Exec into interactive bash as devuser
 echo Opening shell in %CONTAINER_NAME%...
-docker exec -it %CONTAINER_NAME% bash
+docker exec -it -u devuser %CONTAINER_NAME% bash
 
 :: After shell exit, count remaining bash processes (default to 0 if fails)
 set COUNT=0
