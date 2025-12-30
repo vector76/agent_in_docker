@@ -1,2 +1,3 @@
 # Container configuration (contains names, not secrets)
 .env.container
+work/

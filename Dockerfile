@@ -9,12 +9,15 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     curl \
     vim \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for security
-RUN useradd -m -s /bin/bash devuser
-USER devuser
+# Create a non-root user for security with fixed UID/GID
+# Using UID 2000 to avoid conflicts (1000 is taken by ubuntu user in base image)
+RUN groupadd -g 2000 devuser 2>/dev/null || true && \
+    useradd -m -s /bin/bash -u 2000 -g 2000 devuser
 WORKDIR /home/devuser/work
+USER devuser
 
 # Install Amp CLI (AI coding agent)
 # This runs the install script non-interactively; first run may prompt for login if no key is set
@@ -28,6 +31,9 @@ RUN curl https://cursor.com/install -fsS | bash
 
 # Add Cursor to PATH in bashrc
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+
+# Set timezone from TZ environment variable if provided
+RUN echo 'if [ -n "$TZ" ]; then export TZ; fi' >> ~/.bashrc
 
 # Configure git from environment variables if set
 RUN echo 'if [ -n "$GIT_USER_NAME" ]; then git config --global user.name "$GIT_USER_NAME"; fi' >> ~/.bashrc

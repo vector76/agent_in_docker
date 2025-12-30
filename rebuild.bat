@@ -63,6 +63,18 @@ if defined GITHUB_USERNAME (
 if defined INITIAL_REPO_CHECKOUT (
     set ENV_VARS=!ENV_VARS! -e "INITIAL_REPO_CHECKOUT=!INITIAL_REPO_CHECKOUT!"
 )
+
+:: Auto-detect Windows timezone and convert to IANA format (unless TZ is explicitly set)
+if not defined TZ (
+    :: Use PowerShell to get Windows timezone and convert to IANA using TimeZoneInfo
+    for /f "delims=" %%t in ('powershell -NoProfile -Command "$tz = [TimeZoneInfo]::Local; $tzId = $tz.Id; $mapping = @{'Eastern Standard Time'='America/New_York'; 'Central Standard Time'='America/Chicago'; 'Mountain Standard Time'='America/Denver'; 'Pacific Standard Time'='America/Los_Angeles'; 'Alaska Standard Time'='America/Anchorage'; 'Hawaiian Standard Time'='Pacific/Honolulu'; 'Atlantic Standard Time'='America/Halifax'; 'Central European Standard Time'='Europe/Berlin'; 'GMT Standard Time'='Europe/London'; 'W. Europe Standard Time'='Europe/Amsterdam'; 'Tokyo Standard Time'='Asia/Tokyo'; 'China Standard Time'='Asia/Shanghai'; 'India Standard Time'='Asia/Kolkata'; 'AUS Eastern Standard Time'='Australia/Sydney'; 'New Zealand Standard Time'='Pacific/Auckland'}; if ($mapping.ContainsKey($tzId)) { $mapping[$tzId] } else { $tzId }"') do set TZ=%%t
+    if not defined TZ (
+        echo Warning: Could not detect timezone. Set TZ environment variable manually if needed.
+    )
+)
+if defined TZ (
+    set ENV_VARS=!ENV_VARS! -e "TZ=!TZ!"
+)
 :: Add more variables here following the same pattern:
 :: if defined ANOTHER_VAR (
 ::     set ENV_VARS=!ENV_VARS! -e "ANOTHER_VAR=!ANOTHER_VAR!"
