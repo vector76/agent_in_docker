@@ -63,8 +63,19 @@ RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo '  chown 2000:2000 /home/devuser/work 2>/dev/null || true' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo '# Switch to devuser for repository checkout and command execution' >> /entrypoint.sh && \
-    echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ] && [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /entrypoint.sh && \
-    echo '  su - devuser -c "cd /home/devuser/work && git clone \"$INITIAL_REPO_CHECKOUT\" ."' >> /entrypoint.sh && \
+    echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ]; then' >> /entrypoint.sh && \
+    echo '  if [ -n "$REPO_SUBFOLDER" ]; then' >> /entrypoint.sh && \
+    echo '    # Checkout to subfolder' >> /entrypoint.sh && \
+    echo '    REPO_DIR="/home/devuser/work/$REPO_SUBFOLDER"' >> /entrypoint.sh && \
+    echo '    if [ ! -d "$REPO_DIR" ] || [ -z "$(ls -A \"$REPO_DIR\" 2>/dev/null)" ]; then' >> /entrypoint.sh && \
+    echo '      su - devuser -c "mkdir -p \"$REPO_DIR\" && cd \"$REPO_DIR\" && git clone \"$INITIAL_REPO_CHECKOUT\" ."' >> /entrypoint.sh && \
+    echo '    fi' >> /entrypoint.sh && \
+    echo '  else' >> /entrypoint.sh && \
+    echo '    # Checkout to work folder (default behavior)' >> /entrypoint.sh && \
+    echo '    if [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /entrypoint.sh && \
+    echo '      su - devuser -c "cd /home/devuser/work && git clone \"$INITIAL_REPO_CHECKOUT\" ."' >> /entrypoint.sh && \
+    echo '    fi' >> /entrypoint.sh && \
+    echo '  fi' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo 'exec gosu devuser "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh

@@ -18,6 +18,7 @@ for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="CONTAINER_NAME" set CONTAINER_NAME=%%b
     if "%%a"=="WORK_FOLDER" set WORK_FOLDER=%%b
     if "%%a"=="INITIAL_REPO_CHECKOUT" set INITIAL_REPO_CHECKOUT=%%b
+    if "%%a"=="REPO_SUBFOLDER" set REPO_SUBFOLDER=%%b
 )
 if not defined IMAGE_NAME (
     echo IMAGE_NAME not set in .env.container.
@@ -70,6 +71,9 @@ if defined GITHUB_USERNAME (
 )
 if defined INITIAL_REPO_CHECKOUT (
     set ENV_VARS=!ENV_VARS! -e "INITIAL_REPO_CHECKOUT=!INITIAL_REPO_CHECKOUT!"
+)
+if defined REPO_SUBFOLDER (
+    set ENV_VARS=!ENV_VARS! -e "REPO_SUBFOLDER=!REPO_SUBFOLDER!"
 )
 
 :: Auto-detect Windows timezone and convert to IANA format (unless TZ is explicitly set)
