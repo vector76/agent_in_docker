@@ -29,6 +29,19 @@ RUN curl https://cursor.com/install -fsS | bash
 # Add Cursor to PATH in bashrc
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
+# Configure git from environment variables if set
+RUN echo 'if [ -n "$GIT_USER_NAME" ]; then git config --global user.name "$GIT_USER_NAME"; fi' >> ~/.bashrc
+RUN echo 'if [ -n "$GIT_USER_EMAIL" ]; then git config --global user.email "$GIT_USER_EMAIL"; fi' >> ~/.bashrc
+
+# Set up GitHub token authentication if GITHUB_TOKEN is available
+# Uses "git" as username (standard for GitHub PATs) or GITHUB_USERNAME if set
+RUN echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
+    echo '  git config --global credential.helper store' >> ~/.bashrc && \
+    echo '  GITHUB_USER="${GITHUB_USERNAME:-git}"' >> ~/.bashrc && \
+    echo '  echo "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com" > ~/.git-credentials' >> ~/.bashrc && \
+    echo '  chmod 600 ~/.git-credentials' >> ~/.bashrc && \
+    echo 'fi' >> ~/.bashrc
+
 # Optional: Install additional Python packages or tools here via pip
 # RUN pip3 install --user requests numpy  # Example
 

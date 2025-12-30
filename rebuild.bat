@@ -45,6 +45,15 @@ if defined GITHUB_TOKEN (
 if defined CLAUDE_CODE_OAUTH_TOKEN (
     set ENV_VARS=!ENV_VARS! -e "CLAUDE_CODE_OAUTH_TOKEN=!CLAUDE_CODE_OAUTH_TOKEN!"
 )
+if defined GIT_USER_NAME (
+    set ENV_VARS=!ENV_VARS! -e "GIT_USER_NAME=!GIT_USER_NAME!"
+)
+if defined GIT_USER_EMAIL (
+    set ENV_VARS=!ENV_VARS! -e "GIT_USER_EMAIL=!GIT_USER_EMAIL!"
+)
+if defined GITHUB_USERNAME (
+    set ENV_VARS=!ENV_VARS! -e "GITHUB_USERNAME=!GITHUB_USERNAME!"
+)
 :: Add more variables here following the same pattern:
 :: if defined ANOTHER_VAR (
 ::     set ENV_VARS=!ENV_VARS! -e "ANOTHER_VAR=!ANOTHER_VAR!"
