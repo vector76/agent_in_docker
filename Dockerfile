@@ -2,7 +2,15 @@
 FROM ubuntu:24.04
 
 # Install base system tools and dev essentials (customize as needed)
-RUN apt-get update && apt-get install -y \
+# as of 2026-01-03, add-apt-repository needed for golang-go to have a newer version that 1.22.2
+#   (and software-properties-common is needed for add-apt-repository)
+# as of 2026-01-03, this installs version 1.25.5 of golang-go
+# as of 2026-01-03, nodejs is version 18.19.1 and npm is 9.2.0
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:longsleep/golang-backports && \
+    apt-get update && \
+    apt-get install -y \
     build-essential \
     git \
     python3 \
@@ -11,6 +19,10 @@ RUN apt-get update && apt-get install -y \
     vim \
     tzdata \
     gosu \
+    tmux \
+    golang-go \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for security with fixed UID/GID
@@ -20,18 +32,30 @@ RUN groupadd -g 2000 devuser 2>/dev/null || true && \
 WORKDIR /home/devuser/work
 USER devuser
 
-# Install Amp CLI (AI coding agent)
+# Install Amp CLI (AI coding agent) only if AMP_API_KEY is provided
 # This runs the install script non-interactively; first run may prompt for login if no key is set
-RUN curl -fsSL https://ampcode.com/install.sh | bash
+ARG INSTALL_AMP=false
+RUN if [ "$INSTALL_AMP" = "true" ]; then curl -fsSL https://ampcode.com/install.sh | bash; fi
 
-# Install Claude Code
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Claude Code only if CLAUDE_CODE_OAUTH_TOKEN is provided
+ARG INSTALL_CLAUDE=false
+RUN if [ "$INSTALL_CLAUDE" = "true" ]; then curl -fsSL https://claude.ai/install.sh | bash; fi
 
-# Install Cursor agent
-RUN curl https://cursor.com/install -fsS | bash
+# Install Cursor agent only if CURSOR_API_KEY is provided
+ARG INSTALL_CURSOR=false
+RUN if [ "$INSTALL_CURSOR" = "true" ]; then curl https://cursor.com/install -fsS | bash; fi
 
-# Add Cursor to PATH in bashrc
+# Add path for various tools (including bd and others) in bashrc
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+
+RUN echo 'export GOPATH="$HOME/go"' >> ~/.bashrc
+RUN echo 'export PATH="$PATH:$GOPATH/bin"' >> ~/.bashrc
+
+# install bd (beads):
+RUN go install github.com/steveyegge/beads/cmd/bd@latest
+
+# install gt (gas town):
+RUN go install github.com/steveyegge/gastown/cmd/gt@latest
 
 # Set timezone from TZ environment variable if provided
 RUN echo 'if [ -n "$TZ" ]; then export TZ; fi' >> ~/.bashrc

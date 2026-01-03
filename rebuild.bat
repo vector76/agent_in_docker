@@ -119,7 +119,17 @@ docker rmi %IMAGE_NAME% 2>nul
 
 :: Build new image
 echo Building new image %IMAGE_NAME%...
-docker build -t %IMAGE_NAME% .
+set BUILD_ARGS=
+if defined AMP_API_KEY (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_AMP=true
+)
+if defined CLAUDE_CODE_OAUTH_TOKEN (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CLAUDE=true
+)
+if defined CURSOR_API_KEY (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CURSOR=true
+)
+docker build !BUILD_ARGS! -t %IMAGE_NAME% .
 if errorlevel 1 (
     echo Build failed.
     pause
