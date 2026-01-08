@@ -5,9 +5,8 @@ FROM ubuntu:24.04
 # as of 2026-01-03, add-apt-repository needed for golang-go to have a newer version that 1.22.2
 #   (and software-properties-common is needed for add-apt-repository)
 # as of 2026-01-03, this installs version 1.25.5 of golang-go
-# as of 2026-01-03, nodejs is version 18.19.1 and npm is 9.2.0
 RUN apt-get update && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y software-properties-common ca-certificates gnupg && \
     add-apt-repository ppa:longsleep/golang-backports && \
     apt-get update && \
     apt-get install -y \
@@ -21,9 +20,13 @@ RUN apt-get update && \
     gosu \
     tmux \
     golang-go \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x LTS from NodeSource (required for Convex)
+# As of 2026-01-04, Node.js is v20.19.6 and npm is 10.8.2
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for security with fixed UID/GID
 # Using UID 2000 to avoid conflicts (1000 is taken by ubuntu user in base image)
@@ -52,10 +55,13 @@ RUN echo 'export GOPATH="$HOME/go"' >> ~/.bashrc
 RUN echo 'export PATH="$PATH:$GOPATH/bin"' >> ~/.bashrc
 
 # install bd (beads):
-RUN go install github.com/steveyegge/beads/cmd/bd@latest
+#RUN go install github.com/steveyegge/beads/cmd/bd@latest
 
 # install gt (gas town):
-RUN go install github.com/steveyegge/gastown/cmd/gt@latest
+#RUN go install github.com/steveyegge/gastown/cmd/gt@latest
+
+# install bv (beads viewer):
+#RUN go install github.com/Dicklesworthstone/beads_viewer/cmd/bv@latest
 
 # Set timezone from TZ environment variable if provided
 RUN echo 'if [ -n "$TZ" ]; then export TZ; fi' >> ~/.bashrc
