@@ -89,9 +89,8 @@ USER root
 # Copy default bashrc to skeleton for home folder mounting bootstrap
 RUN cp /home/devuser/.bashrc /etc/skel/.bashrc
 
-# Create entrypoint script that fixes Windows mount ownership issue, then switches to devuser
+# Create entrypoint script that fixes Windows mount ownership and bootstraps bashrc
 # The work directory itself is often owned by root due to Windows->Linux mount translation
-# This is a false positive - we only fix root ownership, preserving warnings for real issues
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'set -e' >> /entrypoint.sh && \
     echo '# Fix work directory ownership if owned by root (Windows mount artifact)' >> /entrypoint.sh && \
@@ -99,36 +98,18 @@ RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'if [ -d /home/devuser/work ] && [ "$(stat -c %u /home/devuser/work 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
     echo '  chown 2000:2000 /home/devuser/work 2>/dev/null || true' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
-    echo '# Bootstrap .bashrc if home folder is mounted empty' >> /entrypoint.sh && \
+    echo '# Bootstrap home folder from skeleton if mounted empty' >> /entrypoint.sh && \
     echo 'if [ ! -f /home/devuser/.bashrc ]; then' >> /entrypoint.sh && \
-    echo '  cp /etc/skel/.bashrc /home/devuser/.bashrc' >> /entrypoint.sh && \
-    echo '  chown 2000:2000 /home/devuser/.bashrc' >> /entrypoint.sh && \
+    echo '  cp -a /etc/skel/. /home/devuser/' >> /entrypoint.sh && \
+    echo '  chown -R 2000:2000 /home/devuser' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
-    echo '# Disable exit on error for optional repository checkout' >> /entrypoint.sh && \
-    echo 'set +e' >> /entrypoint.sh && \
-    echo '# Switch to devuser for repository checkout and command execution' >> /entrypoint.sh && \
-    echo 'if [ -n "$INITIAL_REPO_CHECKOUT" ]; then' >> /entrypoint.sh && \
-    echo '  if [ -n "$REPO_SUBFOLDER" ]; then' >> /entrypoint.sh && \
-    echo '    # Checkout to subfolder' >> /entrypoint.sh && \
-    echo '    REPO_DIR="/home/devuser/work/$REPO_SUBFOLDER"' >> /entrypoint.sh && \
-    echo '    if [ ! -d "$REPO_DIR" ] || [ -z "$(ls -A \"$REPO_DIR\" 2>/dev/null)" ]; then' >> /entrypoint.sh && \
-    echo '      su - devuser -c "mkdir -p \"$REPO_DIR\" && cd \"$REPO_DIR\" && git clone \"$INITIAL_REPO_CHECKOUT\" ." || true' >> /entrypoint.sh && \
-    echo '    fi' >> /entrypoint.sh && \
-    echo '  else' >> /entrypoint.sh && \
-    echo '    # Checkout to work folder (default behavior)' >> /entrypoint.sh && \
-    echo '    if [ -z "$(ls -A /home/devuser/work 2>/dev/null)" ]; then' >> /entrypoint.sh && \
-    echo '      su - devuser -c "cd /home/devuser/work && git clone \"$INITIAL_REPO_CHECKOUT\" ." || true' >> /entrypoint.sh && \
-    echo '    fi' >> /entrypoint.sh && \
-    echo '  fi' >> /entrypoint.sh && \
-    echo 'fi' >> /entrypoint.sh && \
-    echo '# Re-enable exit on error for main command' >> /entrypoint.sh && \
-    echo 'set -e' >> /entrypoint.sh && \
+    echo '# Switch to devuser for command execution' >> /entrypoint.sh && \
     echo 'exec gosu devuser "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Optional: Install additional Python packages or tools here via pip
 # RUN pip3 install --user requests numpy  # Example
 
-# Use entrypoint to handle ownership fix and repository checkout, then run the keep-alive command
+# Use entrypoint to handle ownership fix and bashrc bootstrap, then run the keep-alive command
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["tail", "-f", "/dev/null"]

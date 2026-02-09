@@ -10,8 +10,6 @@ for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="IMAGE_NAME" set IMAGE_NAME=%%b
     if "%%a"=="CONTAINER_NAME" set CONTAINER_NAME=%%b
     if "%%a"=="WORK_FOLDER" set WORK_FOLDER=%%b
-    if "%%a"=="INITIAL_REPO_CHECKOUT" set INITIAL_REPO_CHECKOUT=%%b
-    if "%%a"=="REPO_SUBFOLDER" set REPO_SUBFOLDER=%%b
     if "%%a"=="EXPOSE_PORT" set EXPOSE_PORT=%%b
     if "%%a"=="HOME_FOLDER" set HOME_FOLDER=%%b
 )
@@ -71,12 +69,6 @@ if defined GIT_USER_EMAIL (
 )
 if defined GITHUB_USERNAME (
     set ENV_VARS=!ENV_VARS! -e "GITHUB_USERNAME=!GITHUB_USERNAME!"
-)
-if defined INITIAL_REPO_CHECKOUT (
-    set ENV_VARS=!ENV_VARS! -e "INITIAL_REPO_CHECKOUT=!INITIAL_REPO_CHECKOUT!"
-)
-if defined REPO_SUBFOLDER (
-    set ENV_VARS=!ENV_VARS! -e "REPO_SUBFOLDER=!REPO_SUBFOLDER!"
 )
 
 :: Auto-detect Windows timezone and convert to IANA format (unless TZ is explicitly set)
@@ -157,7 +149,7 @@ if defined HOME_FOLDER (
 
 :: Create (but don't start) new container
 echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%...
-docker create --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
+docker create --init --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
 if errorlevel 1 (
     echo Create failed.
     pause
