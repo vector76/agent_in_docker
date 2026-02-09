@@ -1,7 +1,7 @@
 # Container configuration (contains names, not secrets)
 .env.container
 work/
-tpgen/
+devuser_home/
 
 # Secrets file (never commit)
 secrets.bat

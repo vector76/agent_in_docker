@@ -20,6 +20,7 @@ RUN apt-get update && \
     gosu \
     tmux \
     golang-go \
+	pandoc texlive-latex-recommended texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 20.x LTS from NodeSource (required for Convex)
@@ -85,6 +86,9 @@ RUN echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
 # Switch to root temporarily to create entrypoint that can fix ownership
 USER root
 
+# Copy default bashrc to skeleton for home folder mounting bootstrap
+RUN cp /home/devuser/.bashrc /etc/skel/.bashrc
+
 # Create entrypoint script that fixes Windows mount ownership issue, then switches to devuser
 # The work directory itself is often owned by root due to Windows->Linux mount translation
 # This is a false positive - we only fix root ownership, preserving warnings for real issues
@@ -94,6 +98,11 @@ RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo '# Only fix root ownership - preserve warnings for legitimate cross-platform issues' >> /entrypoint.sh && \
     echo 'if [ -d /home/devuser/work ] && [ "$(stat -c %u /home/devuser/work 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
     echo '  chown 2000:2000 /home/devuser/work 2>/dev/null || true' >> /entrypoint.sh && \
+    echo 'fi' >> /entrypoint.sh && \
+    echo '# Bootstrap .bashrc if home folder is mounted empty' >> /entrypoint.sh && \
+    echo 'if [ ! -f /home/devuser/.bashrc ]; then' >> /entrypoint.sh && \
+    echo '  cp /etc/skel/.bashrc /home/devuser/.bashrc' >> /entrypoint.sh && \
+    echo '  chown 2000:2000 /home/devuser/.bashrc' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo '# Disable exit on error for optional repository checkout' >> /entrypoint.sh && \
     echo 'set +e' >> /entrypoint.sh && \

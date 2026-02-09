@@ -12,6 +12,8 @@ for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="WORK_FOLDER" set WORK_FOLDER=%%b
     if "%%a"=="INITIAL_REPO_CHECKOUT" set INITIAL_REPO_CHECKOUT=%%b
     if "%%a"=="REPO_SUBFOLDER" set REPO_SUBFOLDER=%%b
+    if "%%a"=="EXPOSE_PORT" set EXPOSE_PORT=%%b
+    if "%%a"=="HOME_FOLDER" set HOME_FOLDER=%%b
 )
 if not defined IMAGE_NAME (
     echo IMAGE_NAME not set in .env.container.
@@ -136,9 +138,26 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Build port flag if EXPOSE_PORT is set
+set PORT_FLAG=
+if defined EXPOSE_PORT (
+    set PORT_FLAG=-p !EXPOSE_PORT!
+)
+
+:: Build home folder mount if HOME_FOLDER is set
+set HOME_MOUNT=
+if defined HOME_FOLDER (
+    if not exist "!HOME_FOLDER!" (
+        echo Creating home folder: !HOME_FOLDER!
+        mkdir "!HOME_FOLDER!"
+    )
+    set HOME_PATH=!HOST_DIR!\!HOME_FOLDER!
+    set HOME_MOUNT=-v "!HOME_PATH:\=/!:/home/devuser"
+)
+
 :: Create (but don't start) new container
 echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%...
-docker create --name %CONTAINER_NAME% %ENV_VARS% -v %VOLUME_MOUNT% --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
+docker create --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
 if errorlevel 1 (
     echo Create failed.
     pause
