@@ -18,13 +18,15 @@ Create `.env.container` from `.env.container.example`:
 IMAGE_NAME=my-dev-env
 CONTAINER_NAME=my-dev-container
 WORK_FOLDER=work
-# Optional: Git repository URL to clone into work folder on first build
-# INITIAL_REPO_CHECKOUT=https://github.com/user/repo.git
-# Optional: Subfolder within work folder to checkout repository (e.g., for git worktrees)
-# REPO_SUBFOLDER=main-repo
+# Optional: Port to expose (e.g., 8080:8080 for web servers)
+# EXPOSE_PORT=8080:8080
+# Optional: Host folder to persist devuser home directory between rebuilds
+# HOME_FOLDER=home
 ```
 
 **Note**: You can set `WORK_FOLDER=.` to use the current directory as the work folder. This is useful when you want the Docker setup files in a subdirectory.
+
+**Note**: Setting `HOME_FOLDER` allows the devuser's home directory (including shell history, installed user packages, and tool configurations) to persist across container rebuilds.
 
 Set secrets using `secrets.bat` file (recommended):
 1. Copy `secrets.bat.example` to `secrets.bat`
@@ -43,7 +45,7 @@ $env:GITHUB_TOKEN = "ghp-your-token"
 $env:CLAUDE_CODE_OAUTH_TOKEN = "your-token"
 $env:GIT_USER_NAME = "Your Name"
 $env:GIT_USER_EMAIL = "your.email@example.com"
-# Optional:
+# Required if using GITHUB_TOKEN:
 $env:GITHUB_USERNAME = "your-github-username"
 $env:TZ = "America/New_York"  # Override auto-detected timezone
 ```
@@ -78,21 +80,24 @@ cbash.bat
 ## 4. Container Features
 
 ### Installed Tools
-- **Amp CLI**: AI coding agent (`ampcode.com`)
-- **Claude Code**: AI coding agent (`claude.ai`)
-- **Cursor agent**: AI coding agent (`cursor.com`)
+
+**Always installed:**
 - **Git**: Configured from environment variables
 - **Python 3**: With pip
-- **Build tools**: build-essential, curl, vim
+- **Go**: golang-go (via PPA for latest version)
+- **Node.js**: v20.x LTS with npm
+- **Build tools**: build-essential, curl, vim, tmux
+- **Document tools**: pandoc, texlive-latex-recommended, texlive-fonts-recommended
+
+**Conditionally installed** (only if corresponding API key is set during build):
+- **Amp CLI**: AI coding agent - installed if `AMP_API_KEY` is set
+- **Claude Code**: AI coding agent - installed if `CLAUDE_CODE_OAUTH_TOKEN` is set
+- **Cursor agent**: AI coding agent - installed if `CURSOR_API_KEY` is set
 
 ### Automatic Configuration
 - **Git user**: Configured from `GIT_USER_NAME` and `GIT_USER_EMAIL` environment variables
-- **GitHub authentication**: Uses `GITHUB_TOKEN` for authenticated git operations
+- **GitHub authentication**: Uses `GITHUB_TOKEN` and `GITHUB_USERNAME` for authenticated git operations
 - **Timezone**: Auto-detected from Windows, can be overridden with `TZ` environment variable
-- **Repository checkout**: 
-  - If `INITIAL_REPO_CHECKOUT` is set in `.env.container` and target directory is empty, automatically clones on container start
-  - If `REPO_SUBFOLDER` is also set, clones into that subfolder of the work directory (useful for git worktrees)
-  - If `REPO_SUBFOLDER` is not set, clones directly into the work directory
 
 ### Ownership Management
 - **Fixed UID**: User `devuser` always has UID 2000 for consistent ownership

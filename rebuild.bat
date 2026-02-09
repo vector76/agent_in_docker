@@ -102,10 +102,10 @@ set VOLUME_MOUNT=!WORK_PATH:\=/!:/home/devuser/work
 set WORKDIR=/home/devuser/work
 set KEEP_ALIVE=tail -f /dev/null
 
-:: Stop and remove existing container (show errors for debugging)
+:: Stop and remove existing container if it exists
 echo Stopping and removing container %CONTAINER_NAME% if exists...
-docker stop %CONTAINER_NAME%
-docker rm %CONTAINER_NAME%
+docker stop %CONTAINER_NAME% 2>nul
+docker rm %CONTAINER_NAME% 2>nul
 
 :: Remove old image if it exists
 echo Removing old image %IMAGE_NAME% if exists...
