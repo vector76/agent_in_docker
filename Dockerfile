@@ -20,6 +20,7 @@ RUN apt-get update && \
     gosu \
     tmux \
     golang-go \
+    jq \
 	pandoc texlive-latex-recommended texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 
