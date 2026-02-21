@@ -34,7 +34,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
 # Using UID 2000 to avoid conflicts (1000 is taken by ubuntu user in base image)
 RUN groupadd -g 2000 devuser 2>/dev/null || true && \
     useradd -m -s /bin/bash -u 2000 -g 2000 devuser
-WORKDIR /home/devuser/work
+ARG WORK_FOLDER=work
+WORKDIR /home/devuser/$WORK_FOLDER
 USER devuser
 
 # Install Amp CLI (AI coding agent) only if AMP_API_KEY is provided
@@ -94,10 +95,11 @@ RUN cp /home/devuser/.bashrc /etc/skel/.bashrc
 # The work directory itself is often owned by root due to Windows->Linux mount translation
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'set -e' >> /entrypoint.sh && \
+    echo 'WORK_DIR="/home/devuser/${WORK_FOLDER:-work}"' >> /entrypoint.sh && \
     echo '# Fix work directory ownership if owned by root (Windows mount artifact)' >> /entrypoint.sh && \
     echo '# Only fix root ownership - preserve warnings for legitimate cross-platform issues' >> /entrypoint.sh && \
-    echo 'if [ -d /home/devuser/work ] && [ "$(stat -c %u /home/devuser/work 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
-    echo '  chown 2000:2000 /home/devuser/work 2>/dev/null || true' >> /entrypoint.sh && \
+    echo 'if [ -d "$WORK_DIR" ] && [ "$(stat -c %u "$WORK_DIR" 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
+    echo '  chown 2000:2000 "$WORK_DIR" 2>/dev/null || true' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo '# Bootstrap home folder from skeleton if mounted empty' >> /entrypoint.sh && \
     echo 'if [ ! -f /home/devuser/.bashrc ]; then' >> /entrypoint.sh && \

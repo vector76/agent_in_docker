@@ -22,8 +22,7 @@ if not defined CONTAINER_NAME (
     exit /b 1
 )
 if not defined WORK_FOLDER (
-    echo WORK_FOLDER not set in .env.container.
-    exit /b 1
+    set WORK_FOLDER=work
 )
 
 :: Load secrets from secrets.bat if it exists (check current folder and parent folder)
@@ -81,6 +80,7 @@ if not defined TZ (
 if defined TZ (
     set ENV_VARS=!ENV_VARS! -e "TZ=!TZ!"
 )
+set ENV_VARS=!ENV_VARS! -e "WORK_FOLDER=!WORK_FOLDER!"
 :: Add more variables here following the same pattern:
 :: if defined ANOTHER_VAR (
 ::     set ENV_VARS=!ENV_VARS! -e "ANOTHER_VAR=!ANOTHER_VAR!"
@@ -95,10 +95,10 @@ if not exist "!WORK_FOLDER!" (
 :: Get absolute host directory and replace \ with / for Docker volume format
 set HOST_DIR=%CD%
 set WORK_PATH=!HOST_DIR!\!WORK_FOLDER!
-set VOLUME_MOUNT=!WORK_PATH:\=/!:/home/devuser/work
+set VOLUME_MOUNT=!WORK_PATH:\=/!:/home/devuser/!WORK_FOLDER!
 
 :: ENV_VARS is built above from host environment variables
-set WORKDIR=/home/devuser/work
+set WORKDIR=/home/devuser/!WORK_FOLDER!
 set KEEP_ALIVE=tail -f /dev/null
 
 :: Stop and remove existing container if it exists
@@ -112,7 +112,7 @@ docker rmi %IMAGE_NAME% 2>nul
 
 :: Build new image
 echo Building new image %IMAGE_NAME%...
-set BUILD_ARGS=
+set BUILD_ARGS=--build-arg WORK_FOLDER=!WORK_FOLDER!
 if defined AMP_API_KEY (
     set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_AMP=true
 )
