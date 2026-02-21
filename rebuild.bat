@@ -32,8 +32,7 @@ if exist secrets.bat (
     echo Loading secrets from secrets.bat ^(current folder^)...
     call secrets.bat
     set SECRETS_LOADED=1
-)
-if exist ..\secrets.bat (
+) else if exist ..\secrets.bat (
     echo Loading secrets from secrets.bat ^(parent folder^)...
     call ..\secrets.bat
     set SECRETS_LOADED=1
