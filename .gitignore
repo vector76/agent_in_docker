@@ -5,3 +5,4 @@ devuser_home/
 
 # Secrets file (never commit)
 secrets.bat
+/old

@@ -30,6 +30,47 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
+# Enable pnpm via corepack (ships with Node.js; version matches CI)
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+# Install GitHub CLI (gh)
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y gh && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Tauri Linux system dependencies and OCCT for local Rust/C++ builds
+# Mirrors the apt-get block in .github/workflows/ci.yml so local builds match CI
+RUN apt-get update && \
+    apt-get install -y \
+        pkg-config \
+        cmake \
+        libssl-dev \
+        libgtk-3-dev \
+        libwebkit2gtk-4.1-dev \
+        libayatana-appindicator3-dev \
+        librsvg2-dev \
+        llvm \
+        clang \
+        libclang-dev \
+        libocct-foundation-dev \
+        libocct-modeling-data-dev \
+        libocct-modeling-algorithms-dev \
+        libocct-data-exchange-dev \
+        libocct-ocaf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Environment variables required by the Rust build (bindgen + OCCT linking)
+ENV OCCT_INCLUDE_DIR=/usr/include/opencascade \
+    OCCT_LIB_DIR=/usr/lib/x86_64-linux-gnu
+# Detect LLVM lib dir dynamically (Ubuntu 24.04 ships LLVM 18+)
+RUN echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> /etc/environment && \
+    echo "export LIBCLANG_PATH=$(llvm-config --libdir)" >> /etc/bash.bashrc
+
 # Create a non-root user for security with fixed UID/GID
 # Using UID 2000 to avoid conflicts (1000 is taken by ubuntu user in base image)
 RUN groupadd -g 2000 devuser 2>/dev/null || true && \
@@ -50,6 +91,10 @@ RUN if [ "$INSTALL_CLAUDE" = "true" ]; then curl -fsSL https://claude.ai/install
 # Install Cursor agent only if CURSOR_API_KEY is provided
 ARG INSTALL_CURSOR=false
 RUN if [ "$INSTALL_CURSOR" = "true" ]; then curl https://cursor.com/install -fsS | bash; fi
+
+# Install Rust via rustup (stable toolchain)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+RUN echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
 
 # Add path for various tools (including bd and others) in bashrc
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
