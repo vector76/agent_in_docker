@@ -2,6 +2,7 @@
 .env.container
 work/
 devuser_home/
+claude_persist/
 
 # Secrets file (never commit)
 secrets.bat

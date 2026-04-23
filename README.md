@@ -22,6 +22,8 @@ WORK_FOLDER=work
 # EXPOSE_PORT=8080:8080
 # Optional: Host folder to persist devuser home directory between rebuilds
 # HOME_FOLDER=home
+# Optional: Persist Claude Code auth and settings across rebuilds
+# CLAUDE_PERSIST_FOLDER=claude_persist
 ```
 
 **Note**: You can set `WORK_FOLDER=.` to use the current directory as the work folder. This is useful when you want the Docker setup files in a subdirectory.
@@ -103,6 +105,29 @@ cbash.bat
 - **Fixed UID**: User `devuser` always has UID 2000 for consistent ownership
 - **Windows mount fix**: Entrypoint automatically fixes work directory ownership when owned by root (Windows mount artifact)
 - **Git security**: Preserves git "dubious ownership" warnings for legitimate cross-platform issues while preventing false positives
+
+### Claude Code Persistence
+Set `CLAUDE_PERSIST_FOLDER` in `.env.container` to preserve Claude Code login and settings across rebuilds. This mounts a lightweight host folder for just `~/.claude/` (settings, history) and `~/.claude.json` (auth token) — much faster than persisting the entire home directory.
+
+**Migrating from an existing container** (one-time):
+1. In your **current** container, copy Claude data to the work folder:
+   ```bash
+   mkdir ~/work/.claude_migrate
+   cp -a ~/.claude ~/work/.claude_migrate/
+   cp ~/.claude.json ~/work/.claude_migrate/
+   ```
+2. Add to `.env.container`:
+   ```
+   CLAUDE_PERSIST_FOLDER=claude_persist
+   ```
+3. Run `rebuild.bat` (creates the empty persist folder automatically).
+4. Open a shell with `cbash.bat` and copy the data into the mounted paths:
+   ```bash
+   cp -a ~/work/.claude_migrate/.claude/* ~/.claude/
+   cp -a ~/work/.claude_migrate/.claude/.[!.]* ~/.claude/ 2>/dev/null
+   cp ~/work/.claude_migrate/.claude.json ~/.claude.json
+   rm -rf ~/work/.claude_migrate
+   ```
 
 ## 5. Updating the Image (for Dependencies or Changes)
 

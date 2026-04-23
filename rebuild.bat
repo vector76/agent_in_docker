@@ -12,6 +12,7 @@ for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="WORK_FOLDER" set WORK_FOLDER=%%b
     if "%%a"=="EXPOSE_PORT" set EXPOSE_PORT=%%b
     if "%%a"=="HOME_FOLDER" set HOME_FOLDER=%%b
+    if "%%a"=="CLAUDE_PERSIST_FOLDER" set CLAUDE_PERSIST_FOLDER=%%b
 )
 if not defined IMAGE_NAME (
     echo IMAGE_NAME not set in .env.container.
@@ -118,6 +119,8 @@ if defined AMP_API_KEY (
 )
 if defined CLAUDE_CODE_OAUTH_TOKEN (
     set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CLAUDE=true
+) else if defined CLAUDE_PERSIST_FOLDER (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CLAUDE=true
 )
 if defined CURSOR_API_KEY (
     set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CURSOR=true
@@ -146,9 +149,24 @@ if defined HOME_FOLDER (
     set HOME_MOUNT=-v "!HOME_PATH:\=/!:/home/devuser"
 )
 
+:: Build Claude persist mounts if CLAUDE_PERSIST_FOLDER is set
+set CLAUDE_MOUNT=
+if defined CLAUDE_PERSIST_FOLDER (
+    if not exist "!CLAUDE_PERSIST_FOLDER!\claude" (
+        echo Creating Claude persist folder: !CLAUDE_PERSIST_FOLDER!\claude
+        mkdir "!CLAUDE_PERSIST_FOLDER!\claude"
+    )
+    if not exist "!CLAUDE_PERSIST_FOLDER!\claude.json" (
+        echo Creating empty claude.json in !CLAUDE_PERSIST_FOLDER!
+        type nul > "!CLAUDE_PERSIST_FOLDER!\claude.json"
+    )
+    set CLAUDE_PATH=!HOST_DIR!\!CLAUDE_PERSIST_FOLDER!
+    set CLAUDE_MOUNT=-v "!CLAUDE_PATH:\=/!/claude:/home/devuser/.claude" -v "!CLAUDE_PATH:\=/!/claude.json:/home/devuser/.claude.json"
+)
+
 :: Create (but don't start) new container
 echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%...
-docker create --init --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
+docker create --init --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% %CLAUDE_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
 if errorlevel 1 (
     echo Create failed.
     pause
