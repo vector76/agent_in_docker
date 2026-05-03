@@ -92,6 +92,12 @@ RUN if [ "$INSTALL_CLAUDE" = "true" ]; then curl -fsSL https://claude.ai/install
 ARG INSTALL_CURSOR=false
 RUN if [ "$INSTALL_CURSOR" = "true" ]; then curl https://cursor.com/install -fsS | bash; fi
 
+# Switch to root temporarily to allow global install
+USER root
+ARG INSTALL_COPILOT=false
+RUN if [ "$INSTALL_COPILOT" = "true" ]; then npm install -g @github/copilot; fi
+USER devuser
+
 # Install Rust via rustup (stable toolchain)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 RUN echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc

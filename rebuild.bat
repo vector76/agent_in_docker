@@ -13,6 +13,7 @@ for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="EXPOSE_PORT" set EXPOSE_PORT=%%b
     if "%%a"=="HOME_FOLDER" set HOME_FOLDER=%%b
     if "%%a"=="CLAUDE_PERSIST_FOLDER" set CLAUDE_PERSIST_FOLDER=%%b
+    if "%%a"=="COPILOT_PERSIST_FOLDER" set COPILOT_PERSIST_FOLDER=%%b
 )
 if not defined IMAGE_NAME (
     echo IMAGE_NAME not set in .env.container.
@@ -125,6 +126,10 @@ if defined CLAUDE_CODE_OAUTH_TOKEN (
 if defined CURSOR_API_KEY (
     set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CURSOR=true
 )
+if defined COPILOT_PERSIST_FOLDER (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_COPILOT=true
+)
+
 docker build !BUILD_ARGS! -t %IMAGE_NAME% .
 if errorlevel 1 (
     echo Build failed.
@@ -156,17 +161,34 @@ if defined CLAUDE_PERSIST_FOLDER (
         echo Creating Claude persist folder: !CLAUDE_PERSIST_FOLDER!\claude
         mkdir "!CLAUDE_PERSIST_FOLDER!\claude"
     )
+    set CLAUDE_JSON_NEEDS_INIT=0
     if not exist "!CLAUDE_PERSIST_FOLDER!\claude.json" (
-        echo Creating empty claude.json in !CLAUDE_PERSIST_FOLDER!
-        type nul > "!CLAUDE_PERSIST_FOLDER!\claude.json"
+        set CLAUDE_JSON_NEEDS_INIT=1
+    ) else (
+        for %%I in ("!CLAUDE_PERSIST_FOLDER!\claude.json") do if %%~zI==0 set CLAUDE_JSON_NEEDS_INIT=1
+    )
+    if "!CLAUDE_JSON_NEEDS_INIT!"=="1" (
+        echo Initializing claude.json with empty JSON object in !CLAUDE_PERSIST_FOLDER!
+        echo {}>"!CLAUDE_PERSIST_FOLDER!\claude.json"
     )
     set CLAUDE_PATH=!HOST_DIR!\!CLAUDE_PERSIST_FOLDER!
     set CLAUDE_MOUNT=-v "!CLAUDE_PATH:\=/!/claude:/home/devuser/.claude" -v "!CLAUDE_PATH:\=/!/claude.json:/home/devuser/.claude.json"
 )
 
+:: Build Copilot persist mount if COPILOT_PERSIST_FOLDER is set
+set COPILOT_MOUNT=
+if defined COPILOT_PERSIST_FOLDER (
+    if not exist "!COPILOT_PERSIST_FOLDER!\copilot" (
+        echo Creating Copilot persist folder: !COPILOT_PERSIST_FOLDER!\copilot
+        mkdir "!COPILOT_PERSIST_FOLDER!\copilot"
+    )
+    set COPILOT_PATH=!HOST_DIR!\!COPILOT_PERSIST_FOLDER!
+    set COPILOT_MOUNT=-v "!COPILOT_PATH:\=/!/copilot:/home/devuser/.copilot"
+)
+
 :: Create (but don't start) new container
 echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%...
-docker create --init --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% %CLAUDE_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
+docker create --init --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% %CLAUDE_MOUNT% %COPILOT_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
 if errorlevel 1 (
     echo Create failed.
     pause
