@@ -37,9 +37,10 @@ if not "%RUNNING%"=="true" (
 echo Opening shell in %CONTAINER_NAME%...
 docker exec -it -u devuser %CONTAINER_NAME% bash
 
-:: After shell exit, count remaining bash processes (default to 0 if fails)
+:: After shell exit, count remaining interactive bash processes (default to 0 if fails)
+:: pgrep -x matches the process name exactly, so bs serve and other non-shell processes don't count
 set COUNT=0
-for /f %%a in ('docker top %CONTAINER_NAME% ^| findstr "bash" ^| find /c /v ""') do set COUNT=%%a
+for /f %%a in ('docker exec %CONTAINER_NAME% pgrep -c -x bash 2^>nul') do set COUNT=%%a
 
 :: If no more bash processes, stop the container
 if "%COUNT%"=="0" (

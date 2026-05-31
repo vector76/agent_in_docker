@@ -1,7 +1,7 @@
 # Container configuration (contains names, not secrets)
 .env.container
 work/
-devuser_home/
+pi_persist/
 claude_persist/
 
 # Secrets file (never commit)

@@ -11,9 +11,10 @@ for /f "tokens=1,2 delims==" %%a in (.env.container) do (
     if "%%a"=="CONTAINER_NAME" set CONTAINER_NAME=%%b
     if "%%a"=="WORK_FOLDER" set WORK_FOLDER=%%b
     if "%%a"=="EXPOSE_PORT" set EXPOSE_PORT=%%b
-    if "%%a"=="HOME_FOLDER" set HOME_FOLDER=%%b
     if "%%a"=="CLAUDE_PERSIST_FOLDER" set CLAUDE_PERSIST_FOLDER=%%b
-    if "%%a"=="COPILOT_PERSIST_FOLDER" set COPILOT_PERSIST_FOLDER=%%b
+    if "%%a"=="PI_PERSIST_FOLDER" set PI_PERSIST_FOLDER=%%b
+    if "%%a"=="LAN_DNS" set LAN_DNS=%%b
+    if "%%a"=="LAN_DNS_SEARCH" set LAN_DNS_SEARCH=%%b
 )
 if not defined IMAGE_NAME (
     echo IMAGE_NAME not set in .env.container.
@@ -46,17 +47,17 @@ if "!SECRETS_LOADED!"=="0" (
 :: List of environment variable names to propagate to container (hard-coded for security)
 :: Add more variable names to this list as needed, separated by spaces
 set ENV_VARS=
-if defined AMP_API_KEY (
-    set ENV_VARS=!ENV_VARS! -e "AMP_API_KEY=!AMP_API_KEY!"
-)
 if defined ANTHROPIC_API_KEY (
     set ENV_VARS=!ENV_VARS! -e "ANTHROPIC_API_KEY=!ANTHROPIC_API_KEY!"
 )
-if defined CURSOR_API_KEY (
-    set ENV_VARS=!ENV_VARS! -e "CURSOR_API_KEY=!CURSOR_API_KEY!"
-)
 if defined GITHUB_TOKEN (
     set ENV_VARS=!ENV_VARS! -e "GITHUB_TOKEN=!GITHUB_TOKEN!"
+)
+if defined AZURE_DEVOPS_PAT (
+    set ENV_VARS=!ENV_VARS! -e "AZURE_DEVOPS_PAT=!AZURE_DEVOPS_PAT!"
+)
+if defined AZURE_DEVOPS_ORG (
+    set ENV_VARS=!ENV_VARS! -e "AZURE_DEVOPS_ORG=!AZURE_DEVOPS_ORG!"
 )
 if defined CLAUDE_CODE_OAUTH_TOKEN (
     set ENV_VARS=!ENV_VARS! -e "CLAUDE_CODE_OAUTH_TOKEN=!CLAUDE_CODE_OAUTH_TOKEN!"
@@ -69,6 +70,9 @@ if defined GIT_USER_EMAIL (
 )
 if defined GITHUB_USERNAME (
     set ENV_VARS=!ENV_VARS! -e "GITHUB_USERNAME=!GITHUB_USERNAME!"
+)
+if defined BS_TOKEN (
+    set ENV_VARS=!ENV_VARS! -e "BS_TOKEN=!BS_TOKEN!"
 )
 
 :: Auto-detect Windows timezone and convert to IANA format (unless TZ is explicitly set)
@@ -115,19 +119,16 @@ docker rmi %IMAGE_NAME% 2>nul
 :: Build new image
 echo Building new image %IMAGE_NAME%...
 set BUILD_ARGS=--build-arg WORK_FOLDER=!WORK_FOLDER!
-if defined AMP_API_KEY (
-    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_AMP=true
-)
 if defined CLAUDE_CODE_OAUTH_TOKEN (
     set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CLAUDE=true
 ) else if defined CLAUDE_PERSIST_FOLDER (
     set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CLAUDE=true
 )
-if defined CURSOR_API_KEY (
-    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_CURSOR=true
+if defined PI_PERSIST_FOLDER (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_PI=true
 )
-if defined COPILOT_PERSIST_FOLDER (
-    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_COPILOT=true
+if defined GITHUB_USERNAME if defined GITHUB_TOKEN (
+    set BUILD_ARGS=!BUILD_ARGS! --build-arg INSTALL_GH=true
 )
 
 docker build !BUILD_ARGS! -t %IMAGE_NAME% .
@@ -143,15 +144,13 @@ if defined EXPOSE_PORT (
     set PORT_FLAG=-p !EXPOSE_PORT!
 )
 
-:: Build home folder mount if HOME_FOLDER is set
-set HOME_MOUNT=
-if defined HOME_FOLDER (
-    if not exist "!HOME_FOLDER!" (
-        echo Creating home folder: !HOME_FOLDER!
-        mkdir "!HOME_FOLDER!"
-    )
-    set HOME_PATH=!HOST_DIR!\!HOME_FOLDER!
-    set HOME_MOUNT=-v "!HOME_PATH:\=/!:/home/devuser"
+:: Build DNS flag if LAN_DNS is set (lets container resolve LAN hostnames)
+set DNS_FLAG=
+if defined LAN_DNS (
+    set DNS_FLAG=--dns=!LAN_DNS!
+)
+if defined LAN_DNS_SEARCH (
+    set DNS_FLAG=!DNS_FLAG! --dns-search=!LAN_DNS_SEARCH!
 )
 
 :: Build Claude persist mounts if CLAUDE_PERSIST_FOLDER is set
@@ -175,20 +174,23 @@ if defined CLAUDE_PERSIST_FOLDER (
     set CLAUDE_MOUNT=-v "!CLAUDE_PATH:\=/!/claude:/home/devuser/.claude" -v "!CLAUDE_PATH:\=/!/claude.json:/home/devuser/.claude.json"
 )
 
-:: Build Copilot persist mount if COPILOT_PERSIST_FOLDER is set
-set COPILOT_MOUNT=
-if defined COPILOT_PERSIST_FOLDER (
-    if not exist "!COPILOT_PERSIST_FOLDER!\copilot" (
-        echo Creating Copilot persist folder: !COPILOT_PERSIST_FOLDER!\copilot
-        mkdir "!COPILOT_PERSIST_FOLDER!\copilot"
+:: Build Pi persist mount if PI_PERSIST_FOLDER is set
+set PI_MOUNT=
+if defined PI_PERSIST_FOLDER (
+    if not exist "!PI_PERSIST_FOLDER!\pi" (
+        echo Creating Pi persist folder: !PI_PERSIST_FOLDER!\pi
+        mkdir "!PI_PERSIST_FOLDER!\pi"
     )
-    set COPILOT_PATH=!HOST_DIR!\!COPILOT_PERSIST_FOLDER!
-    set COPILOT_MOUNT=-v "!COPILOT_PATH:\=/!/copilot:/home/devuser/.copilot"
+    set PI_PATH=!HOST_DIR!\!PI_PERSIST_FOLDER!
+    set PI_MOUNT=-v "!PI_PATH:\=/!/pi:/home/devuser/.pi"
 )
+
+:: Derive a valid hostname from CONTAINER_NAME (RFC 1123 disallows underscores)
+set HOSTNAME_VALUE=!CONTAINER_NAME:_=-!
 
 :: Create (but don't start) new container
 echo Creating new container %CONTAINER_NAME% from %IMAGE_NAME%...
-docker create --init --name %CONTAINER_NAME% %ENV_VARS% %PORT_FLAG% %HOME_MOUNT% %CLAUDE_MOUNT% %COPILOT_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
+docker create --init --name %CONTAINER_NAME% --hostname !HOSTNAME_VALUE! %ENV_VARS% %PORT_FLAG% %DNS_FLAG% %CLAUDE_MOUNT% %PI_MOUNT% -v "%VOLUME_MOUNT%" --workdir %WORKDIR% %IMAGE_NAME% %KEEP_ALIVE%
 if errorlevel 1 (
     echo Create failed.
     pause

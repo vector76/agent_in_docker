@@ -1,14 +1,8 @@
 # Use a recent Ubuntu base for Linux dev
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 # Install base system tools and dev essentials (customize as needed)
-# as of 2026-01-03, add-apt-repository needed for golang-go to have a newer version that 1.22.2
-#   (and software-properties-common is needed for add-apt-repository)
-# as of 2026-01-03, this installs version 1.25.5 of golang-go
 RUN apt-get update && \
-    apt-get install -y software-properties-common ca-certificates gnupg && \
-    add-apt-repository ppa:longsleep/golang-backports && \
-    apt-get update && \
     apt-get install -y \
     build-essential \
     git \
@@ -24,24 +18,26 @@ RUN apt-get update && \
 	pandoc texlive-latex-recommended texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 20.x LTS from NodeSource (required for Convex)
-# As of 2026-01-04, Node.js is v20.19.6 and npm is 10.8.2
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+# Install Node.js 24.x LTS from NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 # Enable pnpm via corepack (ships with Node.js; version matches CI)
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
-# Install GitHub CLI (gh)
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-        | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-    apt-get update && \
-    apt-get install -y gh && \
-    rm -rf /var/lib/apt/lists/*
+# Install GitHub CLI (gh) only if INSTALL_GH=true (set when both GITHUB_USERNAME and GITHUB_TOKEN are configured)
+ARG INSTALL_GH=false
+RUN if [ "$INSTALL_GH" = "true" ]; then \
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+            | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+        chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+            | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+        apt-get update && \
+        apt-get install -y gh && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Install Tauri Linux system dependencies and OCCT for local Rust/C++ builds
 # Mirrors the apt-get block in .github/workflows/ci.yml so local builds match CI
@@ -79,43 +75,34 @@ ARG WORK_FOLDER=work
 WORKDIR /home/devuser/$WORK_FOLDER
 USER devuser
 
-# Install Amp CLI (AI coding agent) only if AMP_API_KEY is provided
-# This runs the install script non-interactively; first run may prompt for login if no key is set
-ARG INSTALL_AMP=false
-RUN if [ "$INSTALL_AMP" = "true" ]; then curl -fsSL https://ampcode.com/install.sh | bash; fi
-
 # Install Claude Code only if CLAUDE_CODE_OAUTH_TOKEN is provided
 ARG INSTALL_CLAUDE=false
 RUN if [ "$INSTALL_CLAUDE" = "true" ]; then curl -fsSL https://claude.ai/install.sh | bash; fi
 
-# Install Cursor agent only if CURSOR_API_KEY is provided
-ARG INSTALL_CURSOR=false
-RUN if [ "$INSTALL_CURSOR" = "true" ]; then curl https://cursor.com/install -fsS | bash; fi
-
-# Switch to root temporarily to allow global install
+# Switch to root for global npm installs
 USER root
-ARG INSTALL_COPILOT=false
-RUN if [ "$INSTALL_COPILOT" = "true" ]; then npm install -g @github/copilot; fi
+
+# Install pi coding agent only if INSTALL_PI=true (set when PI_PERSIST_FOLDER is configured)
+ARG INSTALL_PI=false
+RUN if [ "$INSTALL_PI" = "true" ]; then npm install -g @earendil-works/pi-coding-agent@latest; fi
 USER devuser
 
 # Install Rust via rustup (stable toolchain)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 RUN echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
 
-# Add path for various tools (including bd and others) in bashrc
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 RUN echo 'export GOPATH="$HOME/go"' >> ~/.bashrc
 RUN echo 'export PATH="$PATH:$GOPATH/bin"' >> ~/.bashrc
 
-# install bd (beads):
-#RUN go install github.com/steveyegge/beads/cmd/bd@latest
+# Ray and friends..
+RUN go install github.com/vector76/beads_server/cmd/bs@main
+RUN go install github.com/vector76/raymond/cmd/ray@main
+RUN go install github.com/vector76/cc_usage_dashboard/cmd/clusage-cli@main
 
-# install gt (gas town):
-#RUN go install github.com/steveyegge/gastown/cmd/gt@latest
-
-# install bv (beads viewer):
-#RUN go install github.com/Dicklesworthstone/beads_viewer/cmd/bv@latest
+# Colored bash prompt (overrides default PS1)
+RUN echo "PS1='\[\033[01;32m\]\u\[\033[00m\]@\[\033[01;33m\]\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '" >> ~/.bashrc
 
 # Set timezone from TZ environment variable if provided
 RUN echo 'if [ -n "$TZ" ]; then export TZ; fi' >> ~/.bashrc
@@ -124,25 +111,32 @@ RUN echo 'if [ -n "$TZ" ]; then export TZ; fi' >> ~/.bashrc
 RUN echo 'if [ -n "$GIT_USER_NAME" ]; then git config --global user.name "$GIT_USER_NAME"; fi' >> ~/.bashrc
 RUN echo 'if [ -n "$GIT_USER_EMAIL" ]; then git config --global user.email "$GIT_USER_EMAIL"; fi' >> ~/.bashrc
 
-# Set up GitHub token authentication if GITHUB_TOKEN is available
-# Uses "git" as username (standard for GitHub PATs) or GITHUB_USERNAME if set
-RUN echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
+# Set up git credentials. ~/.git-credentials is rebuilt on each shell to avoid append-growth,
+# combining GitHub (GITHUB_TOKEN + GITHUB_USERNAME) and Azure DevOps (AZURE_DEVOPS_PAT) entries.
+# Azure DevOps ignores the URL username; "azuredevops" is just a non-empty placeholder.
+RUN echo 'rm -f ~/.git-credentials' >> ~/.bashrc && \
+    echo 'if [ -n "$GITHUB_TOKEN" ] || [ -n "$AZURE_DEVOPS_PAT" ]; then' >> ~/.bashrc && \
+    echo '  git config --global credential.helper store' >> ~/.bashrc && \
+    echo 'fi' >> ~/.bashrc && \
+    echo 'if [ -n "$GITHUB_TOKEN" ]; then' >> ~/.bashrc && \
     echo '  if [ -z "$GITHUB_USERNAME" ]; then' >> ~/.bashrc && \
     echo '    echo "GITHUB_USERNAME is required for GitHub authentication" >&2' >> ~/.bashrc && \
     echo '  else' >> ~/.bashrc && \
-    echo '    git config --global credential.helper store' >> ~/.bashrc && \
-    echo '    echo "https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com" > ~/.git-credentials' >> ~/.bashrc && \
-    echo '    chmod 600 ~/.git-credentials' >> ~/.bashrc && \
+    echo '    echo "https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com" >> ~/.git-credentials' >> ~/.bashrc && \
     echo '  fi' >> ~/.bashrc && \
-    echo 'fi' >> ~/.bashrc
+    echo 'fi' >> ~/.bashrc && \
+    echo 'if [ -n "$AZURE_DEVOPS_PAT" ]; then' >> ~/.bashrc && \
+    echo '  echo "https://azuredevops:${AZURE_DEVOPS_PAT}@dev.azure.com" >> ~/.git-credentials' >> ~/.bashrc && \
+    echo '  if [ -n "$AZURE_DEVOPS_ORG" ]; then' >> ~/.bashrc && \
+    echo '    echo "https://azuredevops:${AZURE_DEVOPS_PAT}@${AZURE_DEVOPS_ORG}.visualstudio.com" >> ~/.git-credentials' >> ~/.bashrc && \
+    echo '  fi' >> ~/.bashrc && \
+    echo 'fi' >> ~/.bashrc && \
+    echo '[ -f ~/.git-credentials ] && chmod 600 ~/.git-credentials' >> ~/.bashrc
 
 # Switch to root temporarily to create entrypoint that can fix ownership
 USER root
 
-# Copy default bashrc to skeleton for home folder mounting bootstrap
-RUN cp /home/devuser/.bashrc /etc/skel/.bashrc
-
-# Create entrypoint script that fixes Windows mount ownership and bootstraps bashrc
+# Create entrypoint script that fixes Windows mount ownership
 # The work directory itself is often owned by root due to Windows->Linux mount translation
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'set -e' >> /entrypoint.sh && \
@@ -152,10 +146,9 @@ RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'if [ -d "$WORK_DIR" ] && [ "$(stat -c %u "$WORK_DIR" 2>/dev/null)" = "0" ]; then' >> /entrypoint.sh && \
     echo '  chown 2000:2000 "$WORK_DIR" 2>/dev/null || true' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
-    echo '# Bootstrap home folder from skeleton if mounted empty' >> /entrypoint.sh && \
-    echo 'if [ ! -f /home/devuser/.bashrc ]; then' >> /entrypoint.sh && \
-    echo '  cp -a /etc/skel/. /home/devuser/' >> /entrypoint.sh && \
-    echo '  chown -R 2000:2000 /home/devuser' >> /entrypoint.sh && \
+    echo '# Start beads server in background if BS_TOKEN is set' >> /entrypoint.sh && \
+    echo 'if [ -n "$BS_TOKEN" ]; then' >> /entrypoint.sh && \
+    echo '  ( cd "$WORK_DIR" && gosu devuser nohup /home/devuser/go/bin/bs serve > /tmp/bs.log 2>&1 ) &' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
     echo '# Switch to devuser for command execution' >> /entrypoint.sh && \
     echo 'exec gosu devuser "$@"' >> /entrypoint.sh && \
@@ -164,6 +157,6 @@ RUN echo '#!/bin/bash' > /entrypoint.sh && \
 # Optional: Install additional Python packages or tools here via pip
 # RUN pip3 install --user requests numpy  # Example
 
-# Use entrypoint to handle ownership fix and bashrc bootstrap, then run the keep-alive command
+# Use entrypoint to handle ownership fix, then run the keep-alive command
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["tail", "-f", "/dev/null"]

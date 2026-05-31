@@ -20,15 +20,13 @@ CONTAINER_NAME=my-dev-container
 WORK_FOLDER=work
 # Optional: Port to expose (e.g., 8080:8080 for web servers)
 # EXPOSE_PORT=8080:8080
-# Optional: Host folder to persist devuser home directory between rebuilds
-# HOME_FOLDER=home
 # Optional: Persist Claude Code auth and settings across rebuilds
 # CLAUDE_PERSIST_FOLDER=claude_persist
+# Optional: Persist pi coding agent state (~/.pi) across rebuilds
+# PI_PERSIST_FOLDER=pi_persist
 ```
 
 **Note**: You can set `WORK_FOLDER=.` to use the current directory as the work folder. This is useful when you want the Docker setup files in a subdirectory.
-
-**Note**: Setting `HOME_FOLDER` allows the devuser's home directory (including shell history, installed user packages, and tool configurations) to persist across container rebuilds.
 
 Set secrets using `secrets.bat` file (recommended):
 1. Copy `secrets.bat.example` to `secrets.bat`
@@ -40,9 +38,7 @@ Set secrets using `secrets.bat` file (recommended):
 
 Alternatively, set environment variables in your PowerShell session (or system-wide):
 ```powershell
-$env:AMP_API_KEY = "sk-your-key"
 $env:ANTHROPIC_API_KEY = "sk-ant-your-key"
-$env:CURSOR_API_KEY = "your-key"
 $env:GITHUB_TOKEN = "ghp-your-token"
 $env:CLAUDE_CODE_OAUTH_TOKEN = "your-token"
 $env:GIT_USER_NAME = "Your Name"
@@ -50,6 +46,8 @@ $env:GIT_USER_EMAIL = "your.email@example.com"
 # Required if using GITHUB_TOKEN:
 $env:GITHUB_USERNAME = "your-github-username"
 $env:TZ = "America/New_York"  # Override auto-detected timezone
+# Optional: enables auto-start of `bs serve` inside the container
+$env:BS_TOKEN = "your-beads-token"
 ```
 
 **Note**: The `secrets.bat` file is gitignored and will never be committed. It's the recommended way to manage secrets as it's less error-prone than setting environment variables manually each time.
@@ -86,48 +84,42 @@ cbash.bat
 **Always installed:**
 - **Git**: Configured from environment variables
 - **Python 3**: With pip
-- **Go**: golang-go (via PPA for latest version)
-- **Node.js**: v20.x LTS with npm
-- **Build tools**: build-essential, curl, vim, tmux
-- **Document tools**: pandoc, texlive-latex-recommended, texlive-fonts-recommended
+- **Go**: golang-go from default apt
+- **Node.js**: v24.x LTS with npm (NodeSource)
+- **Rust**: Stable toolchain via rustup
+- **Build tools**: build-essential, curl, vim, tmux, jq, gosu
+- **Go binaries** (via `go install`, on `$PATH` under `~/go/bin`):
+  - `bs` — beads server (`github.com/vector76/beads_server/cmd/bs`)
+  - `ray` — raymond (`github.com/vector76/raymond/cmd/ray`)
+  - `clusage-cli` — Claude Code usage dashboard (`github.com/vector76/cc_usage_dashboard/cmd/clusage-cli`)
 
-**Conditionally installed** (only if corresponding API key is set during build):
-- **Amp CLI**: AI coding agent - installed if `AMP_API_KEY` is set
-- **Claude Code**: AI coding agent - installed if `CLAUDE_CODE_OAUTH_TOKEN` is set
-- **Cursor agent**: AI coding agent - installed if `CURSOR_API_KEY` is set
+**Conditionally installed:**
+- **GitHub CLI** (`gh`): installed if both `GITHUB_USERNAME` and `GITHUB_TOKEN` are set
+- **Claude Code**: installed if `CLAUDE_CODE_OAUTH_TOKEN` or `CLAUDE_PERSIST_FOLDER` is set
+- **pi** (`@earendil-works/pi-coding-agent`): installed if `PI_PERSIST_FOLDER` is set
 
 ### Automatic Configuration
 - **Git user**: Configured from `GIT_USER_NAME` and `GIT_USER_EMAIL` environment variables
 - **GitHub authentication**: Uses `GITHUB_TOKEN` and `GITHUB_USERNAME` for authenticated git operations
+- **Azure DevOps authentication**: Uses `AZURE_DEVOPS_PAT` for HTTPS git operations against `dev.azure.com` (one PAT covers all projects/repos in the org it was issued from). Set `AZURE_DEVOPS_ORG=<org>` as well if your repos use the legacy `<org>.visualstudio.com` URL format.
 - **Timezone**: Auto-detected from Windows, can be overridden with `TZ` environment variable
+- **Beads server**: If `BS_TOKEN` is set, the entrypoint launches `bs serve` in the background from the work folder on every container start, logging to `/tmp/bs.log`. Leave `BS_TOKEN` unset to skip.
 
 ### Ownership Management
 - **Fixed UID**: User `devuser` always has UID 2000 for consistent ownership
 - **Windows mount fix**: Entrypoint automatically fixes work directory ownership when owned by root (Windows mount artifact)
 - **Git security**: Preserves git "dubious ownership" warnings for legitimate cross-platform issues while preventing false positives
 
-### Claude Code Persistence
-Set `CLAUDE_PERSIST_FOLDER` in `.env.container` to preserve Claude Code login and settings across rebuilds. This mounts a lightweight host folder for just `~/.claude/` (settings, history) and `~/.claude.json` (auth token) — much faster than persisting the entire home directory.
+### Agent Auth/Settings Persistence
 
-**Migrating from an existing container** (one-time):
-1. In your **current** container, copy Claude data to the work folder:
-   ```bash
-   mkdir ~/work/.claude_migrate
-   cp -a ~/.claude ~/work/.claude_migrate/
-   cp ~/.claude.json ~/work/.claude_migrate/
-   ```
-2. Add to `.env.container`:
-   ```
-   CLAUDE_PERSIST_FOLDER=claude_persist
-   ```
-3. Run `rebuild.bat` (creates the empty persist folder automatically).
-4. Open a shell with `cbash.bat` and copy the data into the mounted paths:
-   ```bash
-   cp -a ~/work/.claude_migrate/.claude/* ~/.claude/
-   cp -a ~/work/.claude_migrate/.claude/.[!.]* ~/.claude/ 2>/dev/null
-   cp ~/work/.claude_migrate/.claude.json ~/.claude.json
-   rm -rf ~/work/.claude_migrate
-   ```
+These optional `.env.container` settings preserve agent login and settings across image rebuilds by bind-mounting just the relevant dotfiles from a host folder — much faster than persisting the entire home directory.
+
+| Variable | Mounts into container | Notes |
+| --- | --- | --- |
+| `CLAUDE_PERSIST_FOLDER` | `~/.claude/` and `~/.claude.json` | Also triggers Claude Code install |
+| `PI_PERSIST_FOLDER` | `~/.pi/` | Also triggers pi install |
+
+Each setting points at a host folder; `rebuild.bat` creates the subfolders it needs on first run.
 
 ## 5. Updating the Image (for Dependencies or Changes)
 
